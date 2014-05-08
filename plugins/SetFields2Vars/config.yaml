@@ -1,0 +1,59 @@
+name: SetFields2Vars
+id:   SetFields2Vars
+key:  setfields2vars
+author_name: Alfasado Inc.
+author_link: http://alfasado.net/
+description: Set vars from specified object.
+version: 0.1
+tags:
+    function:
+        SetFields2Vars: >
+                sub { 
+                    my ( $ctx, $args, $cond ) = @_;
+                    my $stash = $args->{ stash };
+                    if (! $stash ) {
+                        $stash = $args->{ object };
+                    }
+                    my $prefix = $args->{ prefix } || '';
+                    my $vars = $ctx->{ __stash }{ vars } ||= {};
+                    if (! $stash ) {
+                        if ( ( $ctx->{ __stash }{ vars }{ 'entry_archive' } ) ||
+                            ( $ctx->{ __stash }{ vars }{ 'page_archive' } ) ) {
+                            $stash = 'entry';
+                        }
+                    }
+                    if (! $stash ) {
+                        $stash = 'blog';
+                    }
+                    my $obj = $ctx->stash( $stash );
+                    if (! $obj ) {
+                        return '';
+                    }
+                    my $columns = $obj->column_names;
+                    for my $col ( @$columns ) {
+                        $ctx->{ __stash }{ vars }{ $prefix . $col } = $obj->$col;
+                    }
+                    if ( $obj->has_meta ) {
+                        my $model = $stash;
+                        if ( $obj->has_column( 'class' ) ) {
+                            $model = $obj->class;
+                        }
+                        my $blog_id;
+                        if ( $obj->has_column( 'blog_id' ) ) {
+                            $blog_id = $obj->blog_id;
+                        } else {
+                            $blog_id = $ctx->stash( 'blog_id' );
+                        }
+                        my @fields = MT->model( 'field' )->load( { blog_id => [ $blog_id, 0 ], obj_type => $model } );
+                        for my $field( @fields ) {
+                            my $basename = 'field.' . $field->basename;
+                            if ( $obj->has_column( $basename ) ) {
+                                $ctx->{ __stash }{ vars }{ $prefix . $basename } = $obj->$basename;
+                            }
+                        }
+                    }
+                    if ( $stash eq 'entry' ) {
+                        $ctx->{ __stash }{ vars }{ $prefix . 'permalink' } = $obj->permalink;
+                    }
+                    return '';
+                }
